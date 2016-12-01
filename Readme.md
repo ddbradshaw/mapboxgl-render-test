@@ -1,0 +1,1 @@
+Simple mapbox-gl render test
