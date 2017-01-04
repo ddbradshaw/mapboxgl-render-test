@@ -6,8 +6,12 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <script src='https://api.mapbox.com/mapbox-gl-js/v0.28.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v0.28.0/mapbox-gl.css' rel='stylesheet' />
+    <!--<script src='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.js'></script>-->
+    <link href='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://npmcdn.com/@turf/turf@3.5.1/turf.min.js'></script>
+
+    <!-- THIS IS A CUSTOM BUILD OF MAPBOX-GL, USING THE CANVAS_TYPE BRANCH -->
+    <script src='mapbox-gl.js'></script>
 
     <style>
         html, body {
@@ -23,25 +27,189 @@
 
 <body>
     <div id='map'></div>
+
 <script>
+
     mapboxgl.accessToken = 'pk.eyJ1IjoiZGRicmFkc2hhdyIsImEiOiJQemtJRXhvIn0.zJBiAX860916-nQlwX839w';
 
-    var map = new mapboxgl.Map({
+    this.map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v9',
         center: [-84.0377260526948, 33.6824799503554],
         zoom: 17
     });
 
-    map.on('load', renderGeoJSON.bind(this));
+    map.on('load', renderCanvas.bind(this));
 
-    function renderGeoJSON() {
-        map.addSource('hexbins', {
+    function renderCanvas() {
+        let container = map.getCanvasContainer();
+        let canvas = map.getCanvas();
+        let width = container.width;
+        let height = container.height
+
+        this.overlay = document.createElement("canvas"); 
+        this.overlay.setAttribute('id', 'fabric');
+        this.overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10; display:none;";
+        this.ctx = this.overlay.getContext("2d");
+        overlay.width = canvas.width;
+        overlay.height = canvas.height
+
+        container.appendChild(overlay); 
+
+        let bounds = this.map.getBounds();
+        let bbox = [
+            [bounds._sw.lng, bounds._ne.lat],
+            [bounds._ne.lng, bounds._ne.lat],
+            [bounds._ne.lng, bounds._sw.lat],
+            [bounds._sw.lng, bounds._sw.lat]
+        ];
+
+        this.map.addSource('canvas', {
+            "type": 'canvas',
+            "canvas": 'fabric',
+            "coordinates": bbox,
+            "dimensions": [0, 0, overlay.width, overlay.height]
+        });
+
+        this.map.addLayer({
+            'id': 'hex',
+            'type': 'raster',
+            'source': 'canvas',
+            'paint': {'raster-opacity': .2}
+        });
+
+        // re-render our visualization whenever the view changes
+        //this.map.on("zoomend", function() {
+        //    render()
+        //})
+        //this.map.on("moveend", function() {
+        //    render()
+        //})
+
+        // render our initial visualization
+        render();
+    }
+
+    function render() {
+        let cellArea = 1;
+        let cellSideLength = Math.sqrt(cellArea * 2 / (3 * Math.sqrt(3)));   
+        let layout = Layout(LAYOUT_FLAT, Point(5,5), Point(0,0));
+        let w = Math.floor(this.overlay.width / 5); 
+        let h = Math.floor(this.overlay.height / 5);
+
+        /*let bounds = this.map.getBounds();
+        let bbox = [
+            [bounds._sw.lng, bounds._ne.lat],
+            [bounds._ne.lng, bounds._ne.lat],
+            [bounds._ne.lng, bounds._sw.lat],
+            [bounds._sw.lng, bounds._sw.lat]
+        ];
+        let canvas = this.map.getSource('canvas');
+        canvas.setCoordinates(bbox);*/
+
+        console.log('Hexbin count:', w*h);
+
+        this.ctx.setLineDash([]);
+        this.ctx.lineWidth = 1;
+        this.ctx.save();
+        this.ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+
+        for(let q = 0; q < w; q++) {
+            let q_offset = Math.floor(q / 2);
+            for(let r = -q_offset; r < h - q_offset; r++) {
+                let corners = polygon_corners(layout, Hex(q, r, -q - r));
+                this.ctx.beginPath();
+                corners.forEach((coord) => ctx.lineTo(coord.x,coord.y));
+                this.ctx.closePath();
+                this.ctx.fillStyle = getRandomColor();
+                this.ctx.fill();
+                this.ctx.stroke();
+            }
+        }
+        this.ctx.restore();
+    }
+
+    function Layout(orientation, size, origin) {
+        return {orientation: orientation, size: size, origin: origin};
+    }
+
+    function Orientation(f0, f1, f2, f3, b0, b1, b2, b3, start_angle) {
+        return {f0: f0, f1: f1, f2: f2, f3: f3, b0: b0, b1: b1, b2: b2, b3: b3, start_angle: start_angle};
+    }
+
+    function Hex(q, r, s) {
+        return {q: q, r: r, s: s};
+    }
+
+    function Point(x, y) {
+        return {x: x, y: y};
+    }
+
+    function polygon_corners(layout, h)
+    {
+        var corners = [];
+        var center = hex_to_pixel(layout, h);
+        for (var i = 0; i < 6; i++)
+        {
+            var offset = hex_corner_offset(layout, i);
+            corners.push(Point(center.x + offset.x, center.y + offset.y));
+        }
+        corners.push(Point(corners[0].x, corners[0].y));
+        return corners;
+    }
+
+    function hex_to_pixel(layout, h)
+    {
+        var M = layout.orientation;
+        var size = layout.size;
+        var origin = layout.origin;
+        var x = (M.f0 * h.q + M.f1 * h.r) * size.x;
+        var y = (M.f2 * h.q + M.f3 * h.r) * size.y;
+        return Point(x + origin.x, y + origin.y);
+    }
+
+    function hex_corner_offset(layout, corner)
+    {
+        var M = layout.orientation;
+        var size = layout.size;
+        var angle = 2.0 * Math.PI * (M.start_angle - corner) / 6;
+        return Point(size.x * Math.cos(angle), size.y * Math.sin(angle));
+    }
+
+    const LAYOUT_FLAT = Orientation(3.0 / 2.0, 0.0, Math.sqrt(3.0) / 2.0, Math.sqrt(3.0), 2.0 / 3.0, 0.0, -1.0 / 3.0, Math.sqrt(3.0) / 3.0, 0.0);
+
+    function renderTurf() {
+        let bounds = map.getBounds();
+        let bbox = [bounds._ne.lng, bounds._ne.lat, bounds._sw.lng, bounds._sw.lat];
+        let cellSize = 1;
+        let units = 'meters';
+
+        //Generate hexgrid
+        let hexgrid = turf.hexGrid(bbox, cellSize, units);
+
+        this.map.addSource('hexbins', {
+            type: 'geojson',
+            data: hexgrid
+        });
+
+        this.map.addLayer({
+            'id': 'hex',
+            'type': 'fill',
+            'source': 'hexbins',
+            'paint': {
+                'fill-outline-color': '#333',
+                'fill-color': 'rgba(0,0,0,0)'
+            }
+        });
+    }
+
+    function renderLocalData() {
+        this.map.addSource('hexbins', {
             type: 'geojson',
             data: './hexgrid.geojson'
         });
 
-        map.addLayer({
+        this.map.addLayer({
             'id': 'hex',
             'type': 'fill',
             'source': 'hexbins',
