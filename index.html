@@ -38,10 +38,54 @@
         center: [-84.0377260526948, 33.6824799503554],
         zoom: 17
     });
+    
+    //TEST 1:
+    //Uses custom build of mapbox-gl that implements canvas source type
+    //map.on('load', renderCanvasSource.bind(this));
 
-    map.on('load', renderCanvas.bind(this));
+    //TEST 2:
+    //Render hexgrid using turf.  WARNING, test with small browser window!
+    //map.on('load', renderTurf.bind(this));
 
-    function renderCanvas() {
+    //TEST 3:
+    //Renders local data as geojson
+    //map.on('load', renderLocalData.bind(this));
+
+    //TEST 4:
+    //Renders data to simple canvas
+    map.on('load', renderSimpleCanvas.bind(this));
+
+
+    function renderSimpleCanvas() {
+        this.showCanvas = true;
+        let container = map.getCanvasContainer();
+        let canvas = map.getCanvas();
+        let width = container.width;
+        let height = container.height
+
+        this.overlay = document.createElement("canvas"); 
+        this.overlay.setAttribute('id', 'fabric');
+        this.overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10;";
+        this.ctx = this.overlay.getContext("2d");
+        overlay.width = canvas.width;
+        overlay.height = canvas.height
+
+        container.appendChild(overlay); 
+
+        // re-render our visualization whenever the view changes
+        this.map.on("movestart", function() {
+            this.overlay.style.display = "none";
+        }.bind(this));
+        this.map.on("moveend", function() {
+            render()
+        });
+
+        // render our initial visualization
+        render();
+    }
+
+    function renderCanvasSource() {
+        this.showCanvas = false;
         let container = map.getCanvasContainer();
         let canvas = map.getCanvas();
         let width = container.width;
@@ -78,14 +122,6 @@
             'paint': {'raster-opacity': .2}
         });
 
-        // re-render our visualization whenever the view changes
-        //this.map.on("zoomend", function() {
-        //    render()
-        //})
-        //this.map.on("moveend", function() {
-        //    render()
-        //})
-
         // render our initial visualization
         render();
     }
@@ -111,6 +147,7 @@
 
         this.ctx.setLineDash([]);
         this.ctx.lineWidth = 1;
+        this.ctx.globalAlpha = 0.1;
         this.ctx.save();
         this.ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
 
@@ -127,6 +164,10 @@
             }
         }
         this.ctx.restore();
+
+        //Show canvas if not visible
+        if(this.showCanvas)
+            this.overlay.style.display = "block";
     }
 
     function Layout(orientation, size, origin) {
