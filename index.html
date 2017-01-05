@@ -54,7 +54,7 @@
 
     //TEST 3:
     //Renders local data as geojson
-    //this.map.on('load', renderLocalData.bind(this));
+    this.map.on('load', renderLocalData.bind(this));
 
     //TEST 4:
     //Renders data to simple canvas
@@ -62,7 +62,7 @@
 
     //TEST 5:
     //Simple API test
-    this.map.on('load', renderAPIData.bind(this));
+    //this.map.on('load', renderAPIData.bind(this));
 
     function renderAPIData() {
         $.ajax({
