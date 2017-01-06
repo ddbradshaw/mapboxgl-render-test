@@ -57,7 +57,7 @@
     //TEST 1:
     //Uses custom build of mapbox-gl that implements canvas source type
     //THIS TEST IS BROKEN
-    //this.map.on('load', customCanvasType.bind(this));
+    this.map.on('load', customCanvasType.bind(this));
 
     //TEST 2:
     //Render hexgrid using turf.  WARNING, test with small browser window!
@@ -73,7 +73,7 @@
 
     //TEST 5:
     //Constructs a simple overlay canvas from hexgrid IDs
-    this.map.on('load', constructSimpleCanvas.bind(this));
+    //this.map.on('load', constructSimpleCanvas.bind(this));
 
     //TEST 6:
     //Constructs GeoJSON layer from hexgrid IDs
@@ -84,16 +84,24 @@
     // TEST 1:
     // ==============================================
     function customCanvasType() {
+        $.ajax({
+            dataType: "json",
+            url: 'metricdata.geojson',
+            success: customCanvasTypeHandler.bind(this)
+        });
+    }
+
+    function customCanvasTypeHandler(resp) {
         this.showCanvas = false;
         let container = map.getCanvasContainer();
         let canvas = map.getCanvas();
         let width = container.width;
         let height = container.height
 
-        this.overlay = document.createElement("canvas"); 
-        this.overlay.setAttribute('id', 'fabric');
-        this.overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10; display:none;";
-        this.ctx = this.overlay.getContext("2d");
+        let overlay = document.createElement("canvas"); 
+        overlay.setAttribute('id', 'fabric');
+        overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10; display:none;";
+        //this.ctx = this.overlay.getContext("2d");
         overlay.width = canvas.width;
         overlay.height = canvas.height
 
@@ -122,7 +130,7 @@
         });
 
         // render our initial visualization
-        render();
+        render(resp, overlay);
     }
 
     // ==============================================
@@ -268,6 +276,7 @@
     }
 
     function constructSimpleCanvasHandler(resp) {
+        this.showCanvas = true;
         let container = map.getCanvasContainer();
         let canvas = map.getCanvas();
         let overlay = document.createElement("canvas"); 
@@ -325,7 +334,9 @@
             ctx.stroke();
         }
         ctx.restore();
-        canvas.style.display = "block";
+
+        if(this.showCanvas) //This is used between different tests
+            canvas.style.display = "block";
 
         let end = new Date().getTime();
         console.log("Render time", end - start, "ms");
