@@ -25,8 +25,8 @@
             height: 100%;
         }
         #map {
-            width: 100%;
-            height: 100%;
+            position: absolute;
+            top: 0px; right: 0px; bottom: 0px; left: 0px;
         }
     </style>
 </head>
@@ -56,8 +56,7 @@
     
     //TEST 1:
     //Uses custom build of mapbox-gl that implements canvas source type
-    //THIS TEST IS BROKEN
-    this.map.on('load', customCanvasType.bind(this));
+    //this.map.on('load', customCanvasType.bind(this));
 
     //TEST 2:
     //Render hexgrid using turf.  WARNING, test with small browser window!
@@ -73,7 +72,7 @@
 
     //TEST 5:
     //Constructs a simple overlay canvas from hexgrid IDs
-    //this.map.on('load', constructSimpleCanvas.bind(this));
+    this.map.on('load', constructSimpleCanvas.bind(this));
 
     //TEST 6:
     //Constructs GeoJSON layer from hexgrid IDs
@@ -94,17 +93,14 @@
     function customCanvasTypeHandler(resp) {
         this.showCanvas = false;
         let container = map.getCanvasContainer();
-        let canvas = map.getCanvas();
-        let width = container.width;
-        let height = container.height
+        let el = document.getElementById('map');
+        let timer = 0;
 
         let overlay = document.createElement("canvas"); 
         overlay.setAttribute('id', 'fabric');
         overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10; display:none;";
-        //this.ctx = this.overlay.getContext("2d");
-        overlay.width = canvas.width;
-        overlay.height = canvas.height
-
+        overlay.width = el.offsetWidth;
+        overlay.height = el.offsetHeight;
         container.appendChild(overlay); 
 
         let bounds = this.map.getBounds();
@@ -115,22 +111,37 @@
             [bounds._sw.lng, bounds._sw.lat]
         ];
 
-        this.map.addSource('canvas', {
+        this.map.addSource('canvas1', {
             "type": 'canvas',
             "canvas": 'fabric',
-            "coordinates": bbox,
-            "dimensions": [0, 0, overlay.width, overlay.height]
+            "coordinates": bbox
         });
 
         this.map.addLayer({
             'id': 'hex',
             'type': 'raster',
-            'source': 'canvas',
-            'paint': {'raster-opacity': .2}
+            'source': 'canvas1',
+            'paint': {'raster-opacity': 1}
         });
 
         // render our initial visualization
         render(resp, overlay);
+
+        this.map.on("moveend", function() {
+            let bounds = this.map.getBounds();
+            let bbox = [
+                [bounds._sw.lng, bounds._ne.lat],
+                [bounds._ne.lng, bounds._ne.lat],
+                [bounds._ne.lng, bounds._sw.lat],
+                [bounds._sw.lng, bounds._sw.lat]
+            ];
+            //this.map.getSource('canvas1').setCoordinates(bbox);
+            //render(resp, overlay);
+        }.bind(this));
+
+        /*timer = setInterval(function(){
+            render(resp, overlay);
+        }.bind(this), 3000)*/
     }
 
     // ==============================================
@@ -277,13 +288,14 @@
 
     function constructSimpleCanvasHandler(resp) {
         this.showCanvas = true;
-        let container = map.getCanvasContainer();
-        let canvas = map.getCanvas();
+        let container = this.map.getCanvasContainer();
+        let el = document.getElementById('map');
         let overlay = document.createElement("canvas"); 
         overlay.setAttribute('id', 'fabric');
         overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10;";
-        overlay.width = canvas.width;
-        overlay.height = canvas.height
+        overlay.width = el.offsetWidth;
+        overlay.height = el.offsetHeight;
+
         container.appendChild(overlay);
 
         this.map.on("movestart", function(e) {
@@ -296,9 +308,9 @@
 
         render(resp, overlay);
 
-        setInterval(function(){
-            render(resp, overlay);
-        }.bind(this), 3000)
+        //setInterval(function(){
+        //    render(resp, overlay);
+        //}.bind(this), 3000)
     }
 
     function render(data, canvas) {
@@ -308,6 +320,7 @@
         let topLeftCorner = latLngToPixel(bounds._ne.lat, bounds._sw.lng, lod);
         let offsetX = topLeftCorner.x;
         let offsetY = topLeftCorner.y < 0 ? 0 : topLeftCorner.y;
+
         let corners = [];
         for(id in data.hexGridData) {
             let bin = data.hexGridData[id];
@@ -319,20 +332,17 @@
         }
 
         let ctx = canvas.getContext("2d");
-        ctx.setLineDash([]);
-        ctx.lineWidth = 1;
         ctx.globalAlpha = 0.3;
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for(let x = 0; x < corners.length; x++) {
-            let hex = corners[x];
+        corners.forEach((hex) => {
             ctx.beginPath();
             hex.forEach((coord) => ctx.lineTo(coord[0], coord[1]));
             ctx.closePath();
             ctx.fillStyle = getRandomColor();
             ctx.fill();
             ctx.stroke();
-        }
+        });
         ctx.restore();
 
         if(this.showCanvas) //This is used between different tests
