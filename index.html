@@ -135,6 +135,7 @@
                 [bounds._ne.lng, bounds._sw.lat],
                 [bounds._sw.lng, bounds._sw.lat]
             ];
+            //console.log(bounds);
             //this.map.getSource('canvas1').setCoordinates(bbox);
             //render(resp, overlay);
         }.bind(this));
@@ -287,6 +288,9 @@
     }
 
     function constructSimpleCanvasHandler(resp) {
+        this.map.dragRotate.disable();
+        this.map.touchZoomRotate.disableRotation();
+
         this.showCanvas = true;
         let container = this.map.getCanvasContainer();
         let el = document.getElementById('map');
@@ -308,9 +312,9 @@
 
         render(resp, overlay);
 
-        //setInterval(function(){
-        //    render(resp, overlay);
-        //}.bind(this), 3000)
+        setInterval(function(){
+            render(resp, overlay);
+        }.bind(this), 5000)
     }
 
     function render(data, canvas) {
