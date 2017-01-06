@@ -14,6 +14,7 @@
     <!--<script src='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.js'></script>-->
     <link href='https://api.mapbox.com/mapbox-gl-js/v0.29.0/mapbox-gl.css' rel='stylesheet' />
     <script src='https://npmcdn.com/@turf/turf@3.5.1/turf.min.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.3.15/proj4.js'></script>
 
     <!-- THIS IS A CUSTOM BUILD OF MAPBOX-GL, USING THE CANVAS_TYPE BRANCH -->
     <script src='mapbox-gl.js'></script>
@@ -35,6 +36,15 @@
 
 <script>
 
+    const WMPROJ = proj4.Proj('EPSG:3857');
+    const WGSPROJ = proj4.Proj('EPSG:4326');
+    const LAYOUT_FLAT = Orientation(3.0 / 2.0, 0.0, Math.sqrt(3.0) / 2.0, Math.sqrt(3.0), 2.0 / 3.0, 0.0, -1.0 / 3.0, Math.sqrt(3.0) / 3.0, 0.0);
+    const PI_180 = Math.PI / 180.0;
+	const PI_4 = Math.PI * 4;
+    const cellArea = 1;
+    const cellSideLength = Math.sqrt(cellArea * 2 / (3 * Math.sqrt(3)));   
+    const layout = Layout(LAYOUT_FLAT, Point(cellSideLength, cellSideLength), Point(0,0));
+
     mapboxgl.accessToken = 'pk.eyJ1IjoiZGRicmFkc2hhdyIsImEiOiJQemtJRXhvIn0.zJBiAX860916-nQlwX839w';
 
     this.map = new mapboxgl.Map({
@@ -46,7 +56,7 @@
     
     //TEST 1:
     //Uses custom build of mapbox-gl that implements canvas source type
-    //this.map.on('load', renderCanvasSource.bind(this));
+    //this.map.on('load', customCanvasType.bind(this));
 
     //TEST 2:
     //Render hexgrid using turf.  WARNING, test with small browser window!
@@ -54,90 +64,25 @@
 
     //TEST 3:
     //Renders local data as geojson
-    this.map.on('load', renderLocalData.bind(this));
+    //this.map.on('load', constructGeoJSONExtentFromAPI.bind(this));
 
     //TEST 4:
     //Renders data to simple canvas
-    //this.map.on('load', renderSimpleCanvas.bind(this));
+    //this.map.on('load', constructGeoJSONFromAPI.bind(this));
 
     //TEST 5:
     //Simple API test
-    //this.map.on('load', renderAPIData.bind(this));
+    this.map.on('load', constructSimpleCanvas.bind(this));
 
-    function renderAPIData() {
-        $.ajax({
-            dataType: "json",
-            url: 'apidata.geojson',
-            success: dataHandler.bind(this)
-        });
-    }
-
-    function dataHandler(resp) {
-        let fc = {"type":"FeatureCollection", "features":[]};
-        for(id in resp.hexGridData) {
-            let bin = resp.hexGridData[id];
-            let f = {"type":"Feature", "geometry":bin.geometry, "properties":{"tv":bin.data[0].data[0]}};
-            fc.features.push(f);
-        }
-
-        this.map.addSource('hexbins', {
-            type: 'geojson',
-            data: fc
-        });
-
-        this.map.addLayer({
-            'id': 'hex',
-            'type': 'fill',
-            'source': 'hexbins',
-            'paint': {
-                'fill-outline-color': '#fff',
-                'fill-opacity': .2,
-                'fill-color': {
-                    property: 'tv',
-                    stops: [
-                        [50, 'rgba(0, 246, 255, 1)'],
-                        [100, 'rgba(0, 255, 168, 1)'],
-                        [150, 'rgba(0, 255, 54, 1)'],
-                        [200, 'rgba(72, 255, 0, 1)'],
-                        [250, 'rgba(204, 255, 0, 1)'],
-                        [300, 'rgba(255, 210, 0, 1)'],
-                        [350, 'rgba(255, 18, 0, 1)']
-                    ]
-                }
-            }
-        });
-    }
+    //TEST 6:
+    //Constructs GeoJSON from HexGrid IDs
+    //this.map.on('load', clientSideConstructGeoJSON.bind(this));
 
 
-    function renderSimpleCanvas() {
-        this.showCanvas = true;
-        let container = map.getCanvasContainer();
-        let canvas = map.getCanvas();
-        let width = container.width;
-        let height = container.height
-
-        this.overlay = document.createElement("canvas"); 
-        this.overlay.setAttribute('id', 'fabric');
-        this.overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10;";
-        this.ctx = this.overlay.getContext("2d");
-        overlay.width = canvas.width;
-        overlay.height = canvas.height
-
-        container.appendChild(overlay); 
-
-        // re-render our visualization whenever the view changes
-        this.map.on("movestart", function() {
-            this.overlay.style.display = "none";
-        }.bind(this));
-        this.map.on("moveend", function() {
-            render()
-        });
-
-        // render our initial visualization
-        render();
-    }
-
-    function renderCanvasSource() {
+    // ==============================================
+    // TEST 1:
+    // ==============================================
+    function customCanvasType() {
         this.showCanvas = false;
         let container = map.getCanvasContainer();
         let canvas = map.getCanvas();
@@ -179,99 +124,9 @@
         render();
     }
 
-    function render() {
-        let cellArea = 1;
-        let cellSideLength = Math.sqrt(cellArea * 2 / (3 * Math.sqrt(3)));   
-        let layout = Layout(LAYOUT_FLAT, Point(5,5), Point(0,0));
-        let w = Math.floor(this.overlay.width / 5); 
-        let h = Math.floor(this.overlay.height / 5);
-
-        /*let bounds = this.map.getBounds();
-        let bbox = [
-            [bounds._sw.lng, bounds._ne.lat],
-            [bounds._ne.lng, bounds._ne.lat],
-            [bounds._ne.lng, bounds._sw.lat],
-            [bounds._sw.lng, bounds._sw.lat]
-        ];
-        let canvas = this.map.getSource('canvas');
-        canvas.setCoordinates(bbox);*/
-
-        console.log('Hexbin count:', w*h);
-
-        this.ctx.setLineDash([]);
-        this.ctx.lineWidth = 1;
-        this.ctx.globalAlpha = 0.1;
-        this.ctx.save();
-        this.ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
-
-        for(let q = 0; q < w; q++) {
-            let q_offset = Math.floor(q / 2);
-            for(let r = -q_offset; r < h - q_offset; r++) {
-                let corners = polygon_corners(layout, Hex(q, r, -q - r));
-                this.ctx.beginPath();
-                corners.forEach((coord) => ctx.lineTo(coord.x,coord.y));
-                this.ctx.closePath();
-                this.ctx.fillStyle = getRandomColor();
-                this.ctx.fill();
-                this.ctx.stroke();
-            }
-        }
-        this.ctx.restore();
-
-        //Show canvas if not visible
-        if(this.showCanvas)
-            this.overlay.style.display = "block";
-    }
-
-    function Layout(orientation, size, origin) {
-        return {orientation: orientation, size: size, origin: origin};
-    }
-
-    function Orientation(f0, f1, f2, f3, b0, b1, b2, b3, start_angle) {
-        return {f0: f0, f1: f1, f2: f2, f3: f3, b0: b0, b1: b1, b2: b2, b3: b3, start_angle: start_angle};
-    }
-
-    function Hex(q, r, s) {
-        return {q: q, r: r, s: s};
-    }
-
-    function Point(x, y) {
-        return {x: x, y: y};
-    }
-
-    function polygon_corners(layout, h)
-    {
-        var corners = [];
-        var center = hex_to_pixel(layout, h);
-        for (var i = 0; i < 6; i++)
-        {
-            var offset = hex_corner_offset(layout, i);
-            corners.push(Point(center.x + offset.x, center.y + offset.y));
-        }
-        corners.push(Point(corners[0].x, corners[0].y));
-        return corners;
-    }
-
-    function hex_to_pixel(layout, h)
-    {
-        var M = layout.orientation;
-        var size = layout.size;
-        var origin = layout.origin;
-        var x = (M.f0 * h.q + M.f1 * h.r) * size.x;
-        var y = (M.f2 * h.q + M.f3 * h.r) * size.y;
-        return Point(x + origin.x, y + origin.y);
-    }
-
-    function hex_corner_offset(layout, corner)
-    {
-        var M = layout.orientation;
-        var size = layout.size;
-        var angle = 2.0 * Math.PI * (M.start_angle - corner) / 6;
-        return Point(size.x * Math.cos(angle), size.y * Math.sin(angle));
-    }
-
-    const LAYOUT_FLAT = Orientation(3.0 / 2.0, 0.0, Math.sqrt(3.0) / 2.0, Math.sqrt(3.0), 2.0 / 3.0, 0.0, -1.0 / 3.0, Math.sqrt(3.0) / 3.0, 0.0);
-
+    // ==============================================
+    // TEST 2:
+    // ==============================================
     function renderTurf() {
         let bounds = map.getBounds();
         let bbox = [bounds._ne.lng, bounds._ne.lat, bounds._sw.lng, bounds._sw.lat];
@@ -297,10 +152,208 @@
         });
     }
 
-    function renderLocalData() {
+    // ==============================================
+    // TEST 3:
+    // ==============================================
+     function constructGeoJSONExtentFromAPI() {
+        $.ajax({
+            dataType: "json",
+            url: 'hexgrid.geojson',
+            success: constructGeoJSONExtentFromAPIHandler.bind(this),
+            error: function(e) {
+                console.log(e);
+            }
+        });
+    }
+
+    function constructGeoJSONExtentFromAPIHandler(resp) {
+        let data = resp;
+        data.features.forEach((f) => {
+            f.properties.val = Math.floor(Math.random() * 6) + 1 
+        });
         this.map.addSource('hexbins', {
             type: 'geojson',
-            data: './hexgrid.geojson'
+            data: data
+        });
+
+        let color1 = getRandomColor();
+        let color2 = getRandomColor();
+        let color3 = getRandomColor();
+
+        this.map.addLayer({
+            'id': 'hex',
+            'type': 'fill',
+            'source': 'hexbins',
+            'paint': {
+                'fill-opacity': .5,
+                'fill-color':  {
+                    property: 'val',
+                    stops: [
+                        [1, 'red'],
+                        [2, 'green'],
+                        [3, 'blue'],
+                        [4, 'yellow'],
+                        [5, 'gray'],
+                        [6, 'purple']
+                    ]
+                }
+            }
+        });
+
+        setInterval(function(e){
+            data.features.forEach((f) => {
+                f.properties.val = Math.floor(Math.random() * 6) + 1 
+            });
+            this.map.getSource('hexbins').setData(data);
+        }.bind(this), 2000)
+    }
+
+    // ==============================================
+    // TEST 4:
+    // ==============================================
+    function constructGeoJSONFromAPI() {
+        $.ajax({
+            dataType: "json",
+            url: 'apidata.geojson',
+            success: constructGeoJSONFromAPIHandler.bind(this)
+        });
+    }
+
+    function constructGeoJSONFromAPIHandler(resp) {
+        let fc = {"type":"FeatureCollection", "features":[]};
+        for(id in resp.hexGridData) {
+            let bin = resp.hexGridData[id];
+            let f = {"type":"Feature", "geometry":bin.geometry, "properties":{"tv":bin.data[0].data[0]}};
+            fc.features.push(f);
+        }
+
+        this.map.addSource('hexbins1', {
+            type: 'geojson',
+            data: fc
+        });
+
+        this.map.addLayer({
+            'id': 'hex',
+            'type': 'fill',
+            'source': 'hexbins1',
+            'paint': {
+                'fill-outline-color': '#fff',
+                'fill-opacity': .2,
+                'fill-color': {
+                    property: 'tv',
+                    stops: [
+                        [50, 'rgba(0, 246, 255, 1)'],
+                        [100, 'rgba(0, 255, 168, 1)'],
+                        [150, 'rgba(0, 255, 54, 1)'],
+                        [200, 'rgba(72, 255, 0, 1)'],
+                        [250, 'rgba(204, 255, 0, 1)'],
+                        [300, 'rgba(255, 210, 0, 1)'],
+                        [350, 'rgba(255, 18, 0, 1)']
+                    ]
+                }
+            }
+        });
+    }
+
+    // ==============================================
+    // TEST 5:
+    // ==============================================
+    function constructSimpleCanvas() {
+        $.ajax({
+            dataType: "json",
+            url: 'metricdata.geojson',
+            success: constructSimpleCanvasHandler.bind(this)
+        });
+    }
+
+    function constructSimpleCanvasHandler(resp) {
+        let container = map.getCanvasContainer();
+        let canvas = map.getCanvas();
+        let overlay = document.createElement("canvas"); 
+        overlay.setAttribute('id', 'fabric');
+        overlay.style.cssText = "position:absolute; top:0px; left:0px; z-index:10;";
+        overlay.width = canvas.width;
+        overlay.height = canvas.height
+        container.appendChild(overlay);
+
+        this.map.on("movestart", function(e) {
+            overlay.style.display = "none";
+        }.bind(this));
+
+        this.map.on("moveend", function() {
+            render(resp, overlay);
+        }.bind(this));
+
+        render(resp, overlay);
+
+        /*setInterval(function(){
+            render(resp, overlay);
+        }.bind(this), 2000)*/
+    }
+
+    function render(data, canvas) {
+        let lod = this.map.getZoom();
+        let bounds = this.map.getBounds();
+        let topLeftCorner = latLngToPixel(bounds._ne.lat, bounds._sw.lng, lod);
+        let offsetX = topLeftCorner.x;
+        let offsetY = topLeftCorner.y < 0 ? 0 : topLeftCorner.y;
+        let corners = [];
+        for(id in data.hexGridData) {
+            let bin = data.hexGridData[id];
+            let regex = /\[(.*?)\]/;
+            let i = id.match(regex)[1].split(",");
+            let q = Number(i[0]);
+            let r = Number(i[1]);
+            corners.push(polygon_corners(layout, Hex(q, r, -q - r), true, lod, offsetX, offsetY));
+        }
+
+        let ctx = canvas.getContext("2d");
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.3;
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for(let x = 0; x < corners.length; x++) {
+            let hex = corners[x];
+            ctx.beginPath();
+            hex.forEach((coord) => ctx.lineTo(coord[0], coord[1]));
+            ctx.closePath();
+            ctx.fillStyle = getRandomColor();
+            ctx.fill();
+            ctx.stroke();
+        }
+        ctx.restore();
+        canvas.style.display = "block";
+    }
+
+    // ==============================================
+    // TEST 6:
+    // ==============================================
+    function clientSideConstructGeoJSON() {
+        $.ajax({
+            dataType: "json",
+            url: 'metricdata.geojson',
+            success: clientSideConstructGeoJSONHandler.bind(this)
+        });
+    }
+
+    function clientSideConstructGeoJSONHandler(resp) {
+        let fc = {"type":"FeatureCollection", "features":[]};
+        for(id in resp.hexGridData) {
+            let bin = resp.hexGridData[id];
+            let regex = /\[(.*?)\]/;
+            let i = id.match(regex)[1].split(",");
+            let q = Number(i[0]);
+            let r = Number(i[1]);
+            let corners = polygon_corners(layout, Hex(q, r, -q - r));
+            let geo = {"type":"Polygon", "coordinates": [corners]}
+            let f = {"type":"Feature", "geometry":geo, "properties":{"tv":bin[0].data[0]}};
+            fc.features.push(f);
+        }
+
+        this.map.addSource('hexbins', {
+            type: 'geojson',
+            data: fc
         });
 
         this.map.addLayer({
@@ -308,36 +361,90 @@
             'type': 'fill',
             'source': 'hexbins',
             'paint': {
-                'fill-opacity': {
-                    property: 's',
-                    stops: [
-                        [0, 0],
-                        [1316500, .1],
-                        [1316550, .3],
-                        [1316600, 0],
-                        [1316650, .9],
-                        [1316700, 1],
-                        [1316750, 1]
-                    ]
-                },
+                'fill-outline-color': '#fff',
+                'fill-opacity': .5,
                 'fill-color': {
-                    property: 'r',
+                    property: 'tv',
                     stops: [
-                        [0, '#5d9edf'],
-                        [8735850, '#EED322'],
-                        [8735900, '#69df5d'],
-                        [8735950, '#b9ff4a'],
-                        [8736000, '#ffc14a'],
-                        [8736050, '#ff7d4a'],
-                        [8736100, '#ff4a4a']
+                        [50, 'rgba(0, 246, 255, 1)'],
+                        [100, 'rgba(0, 255, 168, 1)'],
+                        [150, 'rgba(0, 255, 54, 1)'],
+                        [200, 'rgba(72, 255, 0, 1)'],
+                        [250, 'rgba(204, 255, 0, 1)'],
+                        [300, 'rgba(255, 210, 0, 1)'],
+                        [350, 'rgba(255, 18, 0, 1)']
                     ]
-                },
+                }
             }
         });
+    }
 
-        setInterval(function(e){
-            this.map.setPaintProperty('hex', 'fill-color', getRandomColor());
-        }.bind(this), 2000);
+    function Layout(orientation, size, origin) {
+        return {orientation: orientation, size: size, origin: origin};
+    }
+
+    function Orientation(f0, f1, f2, f3, b0, b1, b2, b3, start_angle) {
+        return {f0: f0, f1: f1, f2: f2, f3: f3, b0: b0, b1: b1, b2: b2, b3: b3, start_angle: start_angle};
+    }
+
+    function Hex(q, r, s) {
+        return {q: q, r: r, s: s};
+    }
+
+    function Point(x, y) {
+        return {x: x, y: y};
+    }
+
+    function polygon_corners(layout, h, convertToPixel, lod, canvasOffsetX, canvasOffsetY)
+    {
+        let corners = [];
+        let center = hex_to_pixel(layout, h);
+        for (let i = 0; i < 6; i++)
+        {
+            let offset = hex_corner_offset(layout, i);
+            let projXY = proj4(WMPROJ, WGSPROJ, [center.x + offset.x, center.y + offset.y]);
+            if(convertToPixel) {
+                let t = latLngToPixel(projXY[1], projXY[0], lod);
+                corners.push([t.x - canvasOffsetX, t.y - canvasOffsetY])
+            } else {
+                corners.push(projXY);
+            }
+            //corners.push();
+            //corners.push(Point(center.x + offset.x, center.y + offset.y));
+        }
+        corners.push(corners[0]);
+        return corners;
+    }
+
+    function latLngToPixel(latitude, longitude, lod) {
+        //Formula inspired by:  http://msdn.microsoft.com/en-us/library/bb259689.aspx
+        var sinLatitude = Math.sin(latitude * PI_180);
+        var pixelY = (0.5 - Math.log((1 + sinLatitude) / (1 - sinLatitude)) / (PI_4)) * 512 * Math.pow(2, lod);
+        var pixelX = ((longitude + 180) / 360) * 512 * Math.pow(2, lod) ;
+        
+        var pixel = new Object();
+        pixel.x = (0.5 + pixelX) | 0;
+        pixel.y = (0.5 + pixelY) | 0;
+
+        return pixel;
+    }
+
+    function hex_to_pixel(layout, h)
+    {
+        var M = layout.orientation;
+        var size = layout.size;
+        var origin = layout.origin;
+        var x = (M.f0 * h.q + M.f1 * h.r) * size.x;
+        var y = (M.f2 * h.q + M.f3 * h.r) * size.y;
+        return Point(x + origin.x, y + origin.y);
+    }
+
+    function hex_corner_offset(layout, corner)
+    {
+        var M = layout.orientation;
+        var size = layout.size;
+        var angle = 2.0 * Math.PI * (M.start_angle - corner) / 6;
+        return Point(size.x * Math.cos(angle), size.y * Math.sin(angle));
     }
 
     function getRandomColor() {
